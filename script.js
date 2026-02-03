@@ -1,13 +1,43 @@
-// REEMPLAZE ESTA URL POR LA DE SU IMPLEMENTACIÓN DE GOOGLE APPS SCRIPT
-const WEB_APP_URL = "SU_URL_DE_EXEC_AQUÍ";
+// IMPORTANTE: Pegue aquí su URL de "Implementación de Aplicación Web"
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyGOtGBmFQ8KCQEGQ2e_N2EUSOlYYs5xLsYv09E2Dxd4OK9tCPPVCi8jCqVFEoR5BrY8Q/exec";
 
 const rolSelector = document.getElementById('rolSelector');
 const camposDinamicos = document.getElementById('camposDinamicos');
 const btnIngresar = document.getElementById('btnIngresar');
-const loginForm = document.getElementById('loginForm');
 const mensaje = document.getElementById('mensaje');
 
-// Manejo de la Interfaz Dinámica
+// Carga nombres desde el Excel según el rol/curso
+async function cargarNombres() {
+    const rol = rolSelector.value;
+    const curso = document.getElementById('curso') ? document.getElementById('curso').value : null;
+    const selectUser = document.getElementById('usuario');
+
+    if (!rol || (rol === 'Estudiante' && !curso)) return;
+
+    selectUser.innerHTML = '<option>Cargando lista...</option>';
+    selectUser.disabled = true;
+
+    try {
+        let fetchUrl = `${WEB_APP_URL}?rol=${rol}`;
+        if (curso) fetchUrl += `&curso=${curso}`;
+
+        const resp = await fetch(fetchUrl);
+        const nombres = await resp.json();
+
+        selectUser.innerHTML = '<option value="">-- Seleccione su nombre --</option>';
+        nombres.forEach(n => {
+            let opt = document.createElement('option');
+            opt.value = n;
+            opt.textContent = n;
+            selectUser.appendChild(opt);
+        });
+        selectUser.disabled = false;
+    } catch (e) {
+        mensaje.innerHTML = "Error al conectar con la base de datos.";
+    }
+}
+
+// Configura el formulario según el rol
 rolSelector.addEventListener('change', () => {
     const rol = rolSelector.value;
     camposDinamicos.innerHTML = '';
@@ -15,41 +45,29 @@ rolSelector.addEventListener('change', () => {
 
     if (rol === 'Profesor' || rol === 'Coordinacion') {
         camposDinamicos.innerHTML = `
-            <div class="form-group">
-                <label>Nombre:</label>
-                <input type="text" id="usuario" placeholder="Ingrese su nombre" required>
-            </div>
-            <div class="form-group">
-                <label>Contraseña:</label>
-                <input type="password" id="pass" placeholder="••••••••" required>
-            </div>`;
+            <div class="form-group"><label>Usuario:</label><select id="usuario" required></select></div>
+            <div class="form-group"><label>Contraseña:</label><input type="password" id="pass" required></div>`;
+        cargarNombres();
     } else if (rol === 'Estudiante') {
         camposDinamicos.innerHTML = `
-            <div class="form-group">
-                <label>Curso:</label>
-                <select id="curso" required>
-                    <option value="">Seleccione...</option>
-                    <option value="4to">4to de Secundaria</option>
-                    <option value="5to">5to de Secundaria</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Nombre del Estudiante:</label>
-                <input type="text" id="usuario" placeholder="Nombre completo" required>
-            </div>
-            <div class="form-group">
-                <label>Contraseña:</label>
-                <input type="password" id="pass" placeholder="Contraseña de curso" required>
-            </div>`;
+            <div class="form-group"><label>Curso:</label><select id="curso" onchange="cargarNombres()" required>
+                <option value="">-- Seleccione curso --</option>
+				<option value="4to B">4to B de Secundaria</option>
+                <option value="4to C">4to C de Secundaria</option>
+                <option value="5to B">5to B de Secundaria</option>
+				<option value="6to B">6to B de Secundaria</option>
+            </select></div>
+            <div class="form-group"><label>Nombre:</label><select id="usuario" required disabled><option>Elija curso...</option></select></div>
+            <div class="form-group"><label>Contraseña:</label><input type="password" id="pass" required></div>`;
     }
 });
 
-// Envío de Datos al Google Sheet
-loginForm.addEventListener('submit', async (e) => {
+// Proceso de Login
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    mensaje.innerHTML = "Verificando credenciales...";
-    btnIngresar.disabled = true;
-
+    mensaje.style.color = "var(--primary-color)";
+    mensaje.innerHTML = "Validando acceso...";
+    
     const payload = {
         rol: rolSelector.value,
         usuario: document.getElementById('usuario').value,
@@ -57,26 +75,20 @@ loginForm.addEventListener('submit', async (e) => {
     };
 
     try {
-        // Usamos mode: 'no-cors' no es necesario si devolvemos el JSON correctamente desde Apps Script
         const response = await fetch(WEB_APP_URL, {
             method: 'POST',
             body: JSON.stringify(payload)
         });
-
         const res = await response.json();
 
         if (res.status === "success") {
-            mensaje.style.color = "green";
-            mensaje.innerHTML = "¡Acceso concedido! Redirigiendo...";
-            setTimeout(() => window.location.href = res.url, 1500);
+            mensaje.innerHTML = "Acceso correcto. Entrando...";
+            window.location.href = res.url;
         } else {
             mensaje.style.color = "red";
             mensaje.innerHTML = res.message;
-            btnIngresar.disabled = false;
         }
-    } catch (error) {
-        mensaje.style.color = "red";
-        mensaje.innerHTML = "Error de conexión. Verifique la URL de la API.";
-        btnIngresar.disabled = false;
+    } catch (err) {
+        mensaje.innerHTML = "Error de conexión.";
     }
 });
